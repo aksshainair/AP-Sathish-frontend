@@ -8,7 +8,7 @@ const Dashboard = () => {
   useEffect(() => {
     // Connect to backend WebSocket for real-time updates
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//ap-sathish-backend.vercel.app/ws`;
+    const wsUrl = `${protocol}//ap-sathish-backend.onrender.com/ws`;
     wsRef.current = new WebSocket(wsUrl);
     wsRef.current.onmessage = (event) => {
       try {
