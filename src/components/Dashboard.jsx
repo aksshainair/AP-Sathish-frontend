@@ -7,7 +7,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     // Connect to backend WebSocket for real-time updates
-    wsRef.current = new WebSocket('ws://localhost:8000/ws');
+    wsRef.current = new WebSocket('ws://https://ap-sathish-backend.vercel.app/ws');
     wsRef.current.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
