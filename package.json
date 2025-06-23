@@ -10,6 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fontsource/fira-code": "^5.2.6",
+    "@fontsource/outfit": "^5.2.6",
+    "@mui/material": "^7.1.2",
+    "@mui/x-charts": "^8.5.3",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^0.522.0",
     "react": "^19.1.0",

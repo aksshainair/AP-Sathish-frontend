@@ -1,256 +1,275 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BarChart } from '@mui/x-charts/BarChart';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+
+const API_BASE_URL = 'http://localhost:8000/api';
 
 const Dashboard = () => {
-  // State for live dashboard data
-  const [dashboardData, setDashboardData] = useState(null);
-  const wsRef = useRef(null);
+  // Active tab state
+  const [activeTab, setActiveTab] = useState('invoices');
+  
+  // Data state
+  const [data, setData] = useState({
+    invoices: [],
+    purchaseOrders: [],
+    stats: {
+      totalPOs: 0,
+      totalInvoices: 0,
+      matched: 0,
+      unmatched: 0,
+      poTotal: 0,
+      invoiceTotal: 0
+    },
+    vendorStats: []
+  });
 
+  const [loading, setLoading] = useState(true);
+  
+  // Data fetching
   useEffect(() => {
-    // Connect to backend WebSocket for real-time updates
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//ap-sathish-backend.onrender.com/ws`;
-    wsRef.current = new WebSocket(wsUrl);
-    wsRef.current.onmessage = (event) => {
+    const fetchData = async () => {
+      setLoading(true);
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'dashboard_stats') {
-          setDashboardData(msg.data);
-        }
-      } catch (e) {
-        // Ignore parse errors
+        const [statsRes, invoicesRes, poRes, vendorStatsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/dashboard/stats`),
+          fetch(`${API_BASE_URL}/invoices`),
+          fetch(`${API_BASE_URL}/purchase-orders`),
+          fetch(`${API_BASE_URL}/charts/vendor-stats`)
+        ]);
+
+        const statsData = await statsRes.json();
+        const invoicesData = await invoicesRes.json();
+        const poData = await poRes.json();
+        const vendorStatsData = await vendorStatsRes.json();
+        
+        setData({
+          invoices: invoicesData,
+          purchaseOrders: poData,
+          stats: {
+            totalPOs: statsData.kpis.total_pos,
+            totalInvoices: statsData.kpis.total_invoices,
+            matched: statsData.kpis.matched_invoices,
+            unmatched: statsData.kpis.unmatched_invoices,
+            poTotal: statsData.kpis.total_po_value,
+            invoiceTotal: statsData.kpis.total_invoice_value
+          },
+          vendorStats: vendorStatsData
+        });
+
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+        // Handle error state if needed
+      } finally {
+        setLoading(false);
       }
     };
-    wsRef.current.onerror = (err) => {
-      console.error('WebSocket error:', err);
-    };
-    return () => {
-      wsRef.current && wsRef.current.close();
-    };
-  }, []);
-
-  // Enhanced KPI Card Component with larger, centered numbers
-  const KPICard = ({ title, value, change, changeType, icon }) => {
-    const getChangeColor = () => {
-      if (!change) return '';
-      return 'text-green-400';
-    };
-
-    return (
-      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-all h-full flex flex-col items-center justify-center text-center">
-        <div className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">{title}</div>
-        <div className="text-4xl font-bold text-white my-2">{value}</div>
-        {change && (
-          <div className={`flex items-center text-sm mt-1 ${getChangeColor()}`}>
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-            </svg>
-            {change}%
-          </div>
-        )}
-        {icon && <div className="text-blue-400 opacity-60 mt-2">{icon}</div>}
-      </div>
-    );
-  };
-
-  // Compact Chart Card Component
-  const ChartCard = ({ title, children, className = "" }) => (
-    <div className={`bg-slate-800 rounded-lg p-2 border border-slate-700 h-full flex flex-col ${className}`}>
-      <h3 className="text-white text-xs font-semibold mb-1 flex-shrink-0">{title}</h3>
-      <div className="flex-1 min-h-0">{children}</div>
-    </div>
-  );
-
-  // Compact Bar Chart
-  const CompactBarChart = ({ data, color }) => {
-    const maxValue = Math.max(...data.map(d => d.value));
     
+    fetchData();
+  }, []);
+  
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount || 0);
+  };
+  
+  // Prepare dataset for MUI BarChart
+  const chartDataset = data.vendorStats.map(item => ({
+    vendor: item.vendor,
+    matched: item.matched,
+    unmatched: item.unmatched,
+  }));
+  
+  const muiTheme = createTheme({
+    palette: {
+      mode: 'dark',
+      primary: {
+        main: '#b800ff',
+      },
+      error: {
+        main: '#00d5ff',
+      },
+      text: {
+        primary: 'rgba(255, 255, 255, 0.7)',
+        secondary: 'rgba(255, 255, 255, 0.5)',
+      },
+    },
+    typography: {
+      fontFamily: 'var(--font-sans), serif',
+    },
+  });
+
+  if (loading) {
     return (
-      <div className="h-full flex items-end justify-between space-x-1">
-        {data.slice(0, 10).map((point, index) => (
-          <div key={index} className="flex-1 flex flex-col items-center">
-            <div 
-              className="w-full rounded-t transition-all duration-300 hover:opacity-80"
-              style={{
-                height: `${(point.value / maxValue) * 60}px`,
-                backgroundColor: color,
-                minHeight: '4px',
-                maxHeight: '60px'
-              }}
-              title={`${point.value}`}
-            />
-          </div>
-        ))}
+      <div className="flex h-screen bg-background text-foreground items-center justify-center">
+        <p>Loading Dashboard...</p>
       </div>
     );
-  };
-
-  // Donut Chart Component
-  const DonutChart = ({ data, centerText, centerValue }) => {
-    const total = data.reduce((sum, item) => sum + item.value, 0);
-    let cumulativePercentage = 0;
-
-    const createPath = (percentage, startAngle) => {
-      const angle = (percentage / 100) * 360;
-      const endAngle = startAngle + angle;
-      const largeArcFlag = angle > 180 ? 1 : 0;
-      
-      const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-      const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-      const x2 = 50 + 40 * Math.cos((endAngle * Math.PI) / 180);
-      const y2 = 50 + 40 * Math.sin((endAngle * Math.PI) / 180);
-
-      return `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-    };
-
-    return (
-      <div className="relative">
-        <svg viewBox="0 0 100 100" className="w-16 h-16 transform -rotate-90">
-          {data.map((item, index) => {
-            const percentage = (item.value / total) * 100;
-            const path = createPath(percentage, cumulativePercentage * 3.6);
-            const currentAngle = cumulativePercentage;
-            cumulativePercentage += percentage;
-            
-            return (
-              <path
-                key={index}
-                d={path}
-                fill={item.color}
-                className="hover:opacity-80 transition-opacity"
-              />
-            );
-          })}
-          <circle cx="50" cy="50" r="20" fill="#1e293b" />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-white text-xs font-bold">{centerValue}</div>
-          <div className="text-slate-400 text-xs">{centerText}</div>
-        </div>
-      </div>
-    );
-  };
-
-  // Progress Ring Component
-  const ProgressRing = ({ percentage, color, size = 50 }) => {
-    const circumference = 2 * Math.PI * 15;
-    const strokeDasharray = circumference;
-    const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
-    return (
-      <div className="relative flex items-center justify-center h-full">
-        <svg width={size} height={size} className="transform -rotate-90">
-          <circle
-            cx={size/2}
-            cy={size/2}
-            r="15"
-            stroke="#374151"
-            strokeWidth="3"
-            fill="none"
-          />
-          <circle
-            cx={size/2}
-            cy={size/2}
-            r="15"
-            stroke={color}
-            strokeWidth="3"
-            fill="none"
-            strokeDasharray={strokeDasharray}
-            strokeDashoffset={strokeDashoffset}
-            className="transition-all duration-500"
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-white text-xs font-bold">{percentage}%</span>
-        </div>
-      </div>
-    );
-  };
-
-  // Mini Activity Feed
-  const MiniActivityFeed = () => {
-    const activities = [
-      { icon: '💳', text: 'Payment processed', amount: '$25K', time: '2m' },
-      { icon: '📄', text: 'Invoice received', amount: '$18K', time: '5m' },
-      { icon: '📝', text: 'PO created', amount: '$32K', time: '12m' },
-      { icon: '✅', text: 'Match found', amount: '$15K', time: '18m' },
-    ];
-
-    return (
-      <div className="space-y-1 h-full overflow-y-auto">
-        {activities.map((activity, index) => (
-          <div key={index} className="flex items-center text-xs py-1">
-            <span className="mr-2 text-sm">{activity.icon}</span>
-            <div className="flex-1 text-slate-300 truncate">{activity.text}</div>
-            <div className="text-green-400 font-medium mr-1">{activity.amount}</div>
-            <div className="text-slate-500 text-xs">{activity.time}</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Mini Table Component
-  const MiniTable = () => {
-    const data = [
-      { vendor: 'TechSolutions', value: '$1.2M', status: 'Active' },
-      { vendor: 'MegaCorp', value: '$980K', status: 'Active' },
-      { vendor: 'Industries', value: '$1.4M', status: 'Pending' },
-      { vendor: 'Beta Services', value: '$720K', status: 'Active' },
-    ];
-
-    return (
-      <div className="space-y-1 h-full overflow-y-auto">
-        {data.map((item, index) => (
-          <div key={index} className="flex justify-between items-center text-xs py-1">
-            <div className="text-slate-300 font-medium truncate flex-1">{item.vendor}</div>
-            <div className="text-green-400 ml-2">{item.value}</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-
-  // Icons (simplified)
-  const DocumentIcon = () => (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6" />
-    </svg>
-  );
+  }
 
   return (
-    <div className="h-screen bg-slate-900 text-white p-3 overflow-hidden flex flex-col">
-      {/* Compact Header */}
-      <header className="flex justify-between items-center mb-3 flex-shrink-0">
-        <h1 className="text-xl font-bold">Reconciliation Dashboard</h1>
-        <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span className="text-green-400 text-sm">Live</span>
+    <ThemeProvider theme={muiTheme}>
+      <div className="flex h-screen bg-background text-foreground font-sans">
+        {/* Sidebar */}
+        <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-full flex-shrink-0">
+          <div className="p-4">
+            <h1 className="text-xl font-bold mb-6">Reconciliation Dashboard</h1>
+            <nav className="space-y-1">
+              {[
+                { id: 'invoices', label: 'Invoices' },
+                { id: 'purchase_orders', label: 'Purchase Orders' },
+                { id: 'graphs', label: 'Graphs' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full text-left px-4 py-3 rounded-lg flex items-center transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
-      </header>
-
-      {/* Main Grid Layout: Only KPI Cards */}
-      <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-4 min-h-0">
-        <div className="col-span-1 row-span-1">
-          <KPICard title="Total POs" value={dashboardData?.kpis?.total_pos ?? '--'} icon={<DocumentIcon />} />
-        </div>
-        <div className="col-span-1 row-span-1">
-          <KPICard title="Total Invoices" value={dashboardData?.kpis?.total_invoices ?? '--'} icon={<DocumentIcon />} />
-        </div>
-        <div className="col-span-1 row-span-1">
-          <KPICard title="Matched" value={dashboardData?.kpis?.matched_invoices ?? '--'} icon={<DocumentIcon />} />
-        </div>
-        <div className="col-span-1 row-span-1">
-          <KPICard title="Unmatched" value={dashboardData?.kpis?.unmatched_invoices ?? '--'} icon={<DocumentIcon />} />
-        </div>
-        <div className="col-span-1 row-span-1">
-          <KPICard title="PO Value" value={dashboardData?.kpis?.total_po_value ? `$${dashboardData.kpis.total_po_value.toLocaleString()}` : '--'} icon={<DocumentIcon />} />
-        </div>
-        <div className="col-span-1 row-span-1">
-          <KPICard title="Invoice Value" value={dashboardData?.kpis?.total_invoice_value ? `$${dashboardData.kpis.total_invoice_value.toLocaleString()}` : '--'} icon={<DocumentIcon />} />
+        
+        {/* Main Content */}
+        <div className="flex-1 overflow-auto">
+          <div className="p-6">
+            {/* Top Statistics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">Total POs</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalPOs}</p>
+              </div>
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">Total Invoices</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalInvoices}</p>
+              </div>
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">Matched</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.matched}</p>
+              </div>
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">Unmatched</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.unmatched}</p>
+              </div>
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">PO Total</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.poTotal)}</p>
+              </div>
+              <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
+                <h3 className="text-muted-foreground text-base font-medium">Invoice Total</h3>
+                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.invoiceTotal)}</p>
+              </div>
+            </div>
+            
+            {/* Tab Content */}
+            <div className="bg-card text-card-foreground rounded-lg shadow-sm p-4">
+              {activeTab === 'invoices' && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Invoices</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left p-2">Invoice No.</th>
+                          <th className="text-left p-2">PO No.</th>
+                          <th className="text-left p-2">Vendor</th>
+                          <th className="text-left p-2">Match Status</th>
+                          <th className="text-right p-2">Total Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.invoices.map((invoice) => (
+                          <tr key={invoice.id} className="border-b border-border hover:bg-muted">
+                            <td className="p-2 text-foreground">{invoice.raw_fields.invoice_number || 'N/A'}</td>
+                            <td className="p-2 text-foreground">{invoice.raw_fields.po_number || 'N/A'}</td>
+                            <td className="p-2 text-foreground">{invoice.raw_fields.vendor_name || 'N/A'}</td>
+                            <td className="p-2">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                invoice.match_status === 'matched_cumulative' || invoice.match_status === 'matched'
+                                  ? 'bg-primary/20 text-primary' 
+                                  : 'bg-destructive/20 text-destructive'
+                              }`}>
+                                {invoice.match_status ? (invoice.match_status.includes('matched') ? 'Matched' : 'Unmatched') : 'N/A'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right text-foreground">{formatCurrency(invoice.raw_fields.amount_due)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              
+              {activeTab === 'purchase_orders' && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Purchase Orders</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left p-2">PO No.</th>
+                          <th className="text-left p-2">Date</th>
+                          <th className="text-left p-2">Vendor</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-right p-2">Total Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.purchaseOrders.map((po) => (
+                          <tr key={po.id} className="border-b border-border hover:bg-muted">
+                            <td className="p-2 text-foreground">{po.raw_fields.po_number || 'N/A'}</td>
+                            <td className="p-2 text-foreground">{po.po_date || 'N/A'}</td>
+                            <td className="p-2 text-foreground">{po.raw_fields.vendor_name || 'N/A'}</td>
+                            <td className="p-2">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                po.status === 'Open' 
+                                  ? 'bg-primary/20 text-primary' 
+                                  : 'bg-destructive/20 text-destructive'
+                              }`}>
+                                {po.status || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right text-foreground">{formatCurrency(po.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              
+              {activeTab === 'graphs' && (
+                <>
+                  <h2 className="text-xl font-bold mb-4">Invoice Count by Vendor</h2>
+                  <div style={{ width: '100%', height: 384 }}>
+                    <BarChart
+                      dataset={chartDataset}
+                      xAxis={[{ scaleType: 'band', dataKey: 'vendor' }]}
+                      series={[
+                        { dataKey: 'matched', label: 'Matched', color: muiTheme.palette.primary.main },
+                        { dataKey: 'unmatched', label: 'Unmatched', color: muiTheme.palette.error.main },
+                      ]}
+                      grid={{ horizontal: true }}
+                      margin={{ top: 50, right: 30, left: 40, bottom: 30 }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </ThemeProvider>
   );
 };
 
