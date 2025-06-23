@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://ap-sathish-backend.onrender.com/api';
 
 const Dashboard = () => {
+  const wsRef = useRef(null);
   // Active tab state
   const [activeTab, setActiveTab] = useState('invoices');
   
@@ -67,6 +68,46 @@ const Dashboard = () => {
     fetchData();
   }, []);
   
+  // WebSocket connection for live updates
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//ap-sathish-backend.onrender.com/ws`;
+    wsRef.current = new WebSocket(wsUrl);
+
+    wsRef.current.onopen = () => console.log('WebSocket Connected');
+    
+    wsRef.current.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'dashboard_stats' && msg.data && msg.data.kpis) {
+          const kpis = msg.data.kpis;
+          setData(prevData => ({
+            ...prevData,
+            stats: {
+              totalPOs: kpis.total_pos,
+              totalInvoices: kpis.total_invoices,
+              matched: kpis.matched_invoices,
+              unmatched: kpis.unmatched_invoices,
+              poTotal: kpis.total_po_value,
+              invoiceTotal: kpis.total_invoice_value
+            }
+          }));
+        }
+      } catch (e) {
+        console.error("Error parsing WebSocket message:", e);
+      }
+    };
+
+    wsRef.current.onerror = (error) => console.error('WebSocket Error:', error);
+    wsRef.current.onclose = () => console.log('WebSocket Disconnected');
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, []);
+
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
