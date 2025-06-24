@@ -1,14 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { Sun, Moon, Menu } from 'lucide-react';
+import Chat from './Chat';
 
 const API_BASE_URL = 'https://ap-sathish-backend.onrender.com/api';
 
 const Dashboard = () => {
   const wsRef = useRef(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Active tab state
-  const [activeTab, setActiveTab] = useState('invoices');
+  const [activeTab, setActiveTab] = useState('invoice-dashboard');
   
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Check for saved theme preference or use system preference
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme === 'dark';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
   // Data state
   const [data, setData] = useState({
     invoices: [],
@@ -68,10 +81,31 @@ const Dashboard = () => {
     fetchData();
   }, []);
   
+  // Toggle between dark and light mode
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem('theme', newTheme ? 'dark' : 'light');
+    
+    if (newTheme) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  // Set initial theme on component mount
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   // WebSocket connection for live updates
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//ap-sathish-backend.onrender.com/ws`;
+    const wsUrl = `wss://ap-sathish-backend.onrender.com/ws`;
     wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onopen = () => console.log('WebSocket Connected');
@@ -126,16 +160,12 @@ const Dashboard = () => {
   
   const muiTheme = createTheme({
     palette: {
-      mode: 'dark',
+      mode: isDarkMode ? 'dark' : 'light',
       primary: {
         main: '#b800ff',
       },
       error: {
         main: '#00d5ff',
-      },
-      text: {
-        primary: 'rgba(255, 255, 255, 0.7)',
-        secondary: 'rgba(255, 255, 255, 0.5)',
       },
     },
     typography: {
@@ -155,14 +185,31 @@ const Dashboard = () => {
     <ThemeProvider theme={muiTheme}>
       <div className="flex h-screen bg-background text-foreground font-sans">
         {/* Sidebar */}
-        <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-full flex-shrink-0">
+        <div
+          className={`fixed inset-y-0 left-0 z-30 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex-shrink-0 ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
           <div className="p-4">
-            <h1 className="text-xl font-bold mb-6">Reconciliation Dashboard</h1>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-xl font-bold">Reconciliation Dashboard</h1>
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-full hover:bg-accent transition-colors duration-200"
+                aria-label="Toggle theme"
+              >
+                {isDarkMode ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
+              </button>
+            </div>
             <nav className="space-y-1">
               {[
-                { id: 'invoices', label: 'Invoices' },
+                { id: 'invoice-dashboard', label: 'Invoice Dashboard' },
                 { id: 'purchase_orders', label: 'Purchase Orders' },
-                { id: 'graphs', label: 'Graphs' }
+                { id: 'chat', label: 'Chat' }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -179,44 +226,62 @@ const Dashboard = () => {
             </nav>
           </div>
         </div>
+
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-20 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          ></div>
+        )}
         
         {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card sticky top-0 z-10">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 rounded-full hover:bg-accent"
+              aria-label="Open sidebar"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg font-bold">Reconciliation Dashboard</h1>
+          </header>
+
+          <main className="flex-1 overflow-auto p-6">
             {/* Top Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Total POs</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalPOs}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalPOs}</p>
               </div>
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Total Invoices</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalInvoices}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.totalInvoices}</p>
               </div>
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Matched</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.matched}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.matched}</p>
               </div>
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Unmatched</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.unmatched}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{data.stats.unmatched}</p>
               </div>
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">PO Total</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.poTotal)}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.poTotal)}</p>
               </div>
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Invoice Total</h3>
-                <p className="text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.invoiceTotal)}</p>
+                <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.invoiceTotal)}</p>
               </div>
             </div>
             
             {/* Tab Content */}
             <div className="bg-card text-card-foreground rounded-lg shadow-sm p-4">
-              {activeTab === 'invoices' && (
+              {activeTab === 'invoice-dashboard' && (
                 <>
                   <h2 className="text-xl font-bold mb-4">Invoices</h2>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-auto max-h-[400px]">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-border">
@@ -228,8 +293,8 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.invoices.map((invoice) => (
-                          <tr key={invoice.id} className="border-b border-border hover:bg-muted">
+                        {data.invoices.map((invoice, index) => (
+                          <tr key={invoice.id || index} className="border-b border-border hover:bg-muted">
                             <td className="p-2 text-foreground">{invoice.raw_fields.invoice_number || 'N/A'}</td>
                             <td className="p-2 text-foreground">{invoice.raw_fields.po_number || 'N/A'}</td>
                             <td className="p-2 text-foreground">{invoice.raw_fields.vendor_name || 'N/A'}</td>
@@ -239,7 +304,7 @@ const Dashboard = () => {
                                   ? 'bg-primary/20 text-primary' 
                                   : 'bg-destructive/20 text-destructive'
                               }`}>
-                                {invoice.match_status ? (invoice.match_status.includes('matched') ? 'Matched' : 'Unmatched') : 'N/A'}
+                                {invoice.match_status ? (invoice.match_status === 'matched' || invoice.match_status === 'matched_cumulative' ? 'Matched' : 'Unmatched') : 'N/A'}
                               </span>
                             </td>
                             <td className="p-2 text-right text-foreground">{formatCurrency(invoice.raw_fields.amount_due)}</td>
@@ -247,6 +312,26 @@ const Dashboard = () => {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  <h2 className="text-xl font-bold my-4">Invoice Count by Vendor</h2>
+                  <div style={{ width: '100%', height: 384 }}>
+                    {chartDataset.length > 0 ? (
+                      <BarChart
+                        dataset={chartDataset}
+                        xAxis={[{ scaleType: 'band', dataKey: 'vendor' }]}
+                        series={[
+                          { dataKey: 'matched', label: 'Matched', color: muiTheme.palette.primary.main },
+                          { dataKey: 'unmatched', label: 'Unmatched', color: muiTheme.palette.error.main },
+                        ]}
+                        grid={{ horizontal: true }}
+                        margin={{ top: 50, right: 30, left: 40, bottom: 30 }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-muted-foreground">No data available for chart.</p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -266,8 +351,8 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.purchaseOrders.map((po) => (
-                          <tr key={po.id} className="border-b border-border hover:bg-muted">
+                        {data.purchaseOrders.map((po, index) => (
+                          <tr key={po.id || index} className="border-b border-border hover:bg-muted">
                             <td className="p-2 text-foreground">{po.raw_fields.po_number || 'N/A'}</td>
                             <td className="p-2 text-foreground">{po.po_date || 'N/A'}</td>
                             <td className="p-2 text-foreground">{po.raw_fields.vendor_name || 'N/A'}</td>
@@ -289,25 +374,13 @@ const Dashboard = () => {
                 </>
               )}
               
-              {activeTab === 'graphs' && (
-                <>
-                  <h2 className="text-xl font-bold mb-4">Invoice Count by Vendor</h2>
-                  <div style={{ width: '100%', height: 384 }}>
-                    <BarChart
-                      dataset={chartDataset}
-                      xAxis={[{ scaleType: 'band', dataKey: 'vendor' }]}
-                      series={[
-                        { dataKey: 'matched', label: 'Matched', color: muiTheme.palette.primary.main },
-                        { dataKey: 'unmatched', label: 'Unmatched', color: muiTheme.palette.error.main },
-                      ]}
-                      grid={{ horizontal: true }}
-                      margin={{ top: 50, right: 30, left: 40, bottom: 30 }}
-                    />
-                  </div>
-                </>
+              {activeTab === 'chat' && (
+                <div style={{ height: 'calc(100vh - 280px)' }}>
+                  <Chat />
+                </div>
               )}
             </div>
-          </div>
+          </main>
         </div>
       </div>
     </ThemeProvider>
