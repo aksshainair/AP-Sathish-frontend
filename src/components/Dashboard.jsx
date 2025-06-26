@@ -69,7 +69,6 @@ const Dashboard = () => {
           },
           vendorStats: vendorStatsData
         });
-
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
         // Handle error state if needed
@@ -303,8 +302,8 @@ const Dashboard = () => {
                             <td className="p-2">
                               <span className={`px-2 py-1 rounded-full text-xs ${
                                 invoice.match_status === 'matched_cumulative' || invoice.match_status === 'matched'
-                                  ? 'bg-primary/20 text-primary' 
-                                  : 'bg-destructive/20 text-destructive'
+                                  ? 'bg-accent/20 text-accent' 
+                                  : 'bg-primary/20 text-primary'
                               }`}>
                                 {invoice.match_status ? (invoice.match_status === 'matched' || invoice.match_status === 'matched_cumulative' ? 'Matched' : 'Unmatched') : 'N/A'}
                               </span>
@@ -360,11 +359,11 @@ const Dashboard = () => {
                             <td className="p-2 text-foreground">{po.raw_fields.vendor_name || 'N/A'}</td>
                             <td className="p-2">
                               <span className={`px-2 py-1 rounded-full text-xs ${
-                                po.status === 'Open' 
+                                String(po.status).toLowerCase() === 'open' 
                                   ? 'bg-primary/20 text-primary' 
-                                  : 'bg-destructive/20 text-destructive'
+                                  : 'bg-accent/20 text-accent'
                               }`}>
-                                {po.status || 'N/A'}
+                                {String(po.status).charAt(0).toUpperCase() + String(po.status).slice(1) || 'N/A'}
                               </span>
                             </td>
                             <td className="p-2 text-right text-foreground">{formatCurrency(po.total_amount)}</td>
