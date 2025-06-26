@@ -4,7 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Sun, Moon, Menu } from 'lucide-react';
 import Chat from './Chat';
 
-const API_BASE_URL = 'https://ap-sathish-backend.onrender.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Dashboard = () => {
   const wsRef = useRef(null);
@@ -105,7 +105,7 @@ const Dashboard = () => {
 
   // WebSocket connection for live updates
   useEffect(() => {
-    const wsUrl = `wss://ap-sathish-backend.onrender.com/ws`;
+    const wsUrl = import.meta.env.VITE_WS_URL;
     wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onopen = () => console.log('WebSocket Connected');
@@ -249,6 +249,7 @@ const Dashboard = () => {
 
           <main className="flex-1 overflow-auto p-6">
             {/* Top Statistics */}
+            {activeTab === 'invoice-dashboard' && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-card text-card-foreground pl-6 pt-3 rounded-lg shadow-md">
                 <h3 className="text-muted-foreground text-base font-medium">Total POs</h3>
@@ -275,6 +276,7 @@ const Dashboard = () => {
                 <p className="text-3xl md:text-4xl p-3 pl-0 pt-2 font-bold">{formatCurrency(data.stats.invoiceTotal)}</p>
               </div>
             </div>
+            )}
             
             {/* Tab Content */}
             <div className="bg-card text-card-foreground rounded-lg shadow-sm p-4">
@@ -375,7 +377,7 @@ const Dashboard = () => {
               )}
               
               {activeTab === 'chat' && (
-                <div style={{ height: 'calc(100vh - 280px)' }}>
+                <div style={{ height: '90vh' }}>
                   <Chat />
                 </div>
               )}

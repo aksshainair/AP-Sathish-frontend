@@ -10,10 +10,14 @@ const Message = {
   isError: Boolean,
 };
 
+const sampleQueries = [
+  "For each invoice, show the related purchase order.",
+  "What is the total value of all purchase orders from po_collection?",
+  "List all Vendors."
+];
+
 export default function Chat() {
-  // const baseUrl = "https://mcp-chat-backend.vercel.app";
-  const baseUrl = "https://mcp-chat-backend.onrender.com";
-  // const baseUrl = "http://localhost:8000";
+  const baseUrl = import.meta.env.VITE_CHAT_BASE_URL;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,31 +31,33 @@ export default function Chat() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const sendMessage = async (messageText) => {
+    if (!messageText.trim()) return;
 
     const userMessage = {
       id: Date.now(),
-      content: input,
+      content: messageText,
       isUser: true,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     try {
       const response = await fetch(`${baseUrl}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: messageText }),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
       
-      const botMessage= {
+      const botMessage = {
         id: Date.now() + 1,
         content: data.response || data.error || 'Sorry, I encountered an error.',
         isUser: false,
@@ -61,7 +67,7 @@ export default function Chat() {
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       console.error('Error:', error);
-      const errorMessage= {
+      const errorMessage = {
         id: Date.now() + 1,
         content: 'Failed to get response from the server. Please try again.',
         isUser: false,
@@ -72,6 +78,17 @@ export default function Chat() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSampleQueryClick = (query) => {
+    sendMessage(query);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage(input);
+    setInput('');
   };
 
   // // Cleanup on unmount
@@ -95,9 +112,27 @@ export default function Chat() {
       <main className="flex-1 overflow-y-auto p-4 space-y-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <div className="text-center space-y-2 max-w-md">
+            <div className="text-center space-y-2 max-w-3xl mx-auto w-full">
               <h2 className="text-2xl font-bold text-foreground">How can I help you today?</h2>
-              <p>Ask me anything or let me know how I can assist you.</p>
+              <p className="mb-8">Ask me anything, or start with an example below.</p>
+              
+              <div 
+                className="w-full overflow-hidden group"
+                style={{ maskImage: 'linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)'}}
+              >
+                <div className="flex flex-nowrap animate-scroll group-hover:[animation-play-state:paused]">
+                    {[...sampleQueries, ...sampleQueries].map((query, index) => (
+                      <div 
+                        key={index} 
+                        className="bg-secondary p-4 rounded-lg cursor-pointer flex-shrink-0 w-[250px] text-left hover:bg-primary/10 transition-colors text-card-foreground mx-2"
+                        onClick={() => handleSampleQueryClick(query)}
+                      >
+                        <p className="text-sm font-medium">{query}</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
             </div>
           </div>
         ) : (
