@@ -3,6 +3,7 @@ import LineItemsModal from './LineItemsModal';
 import { useWebSocket } from './WebSocketProvider'; // Import the hook
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// const API_BASE_URL = "http://localhost:8000";
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
@@ -95,7 +96,7 @@ const HumanReview = () => {
     setComments((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSubmit = async (reviewId, decision, reasoning) => {
+  const handleSubmit = async (reviewId, decision, reasoning, newRule) => {
     setSubmitting((prev) => ({ ...prev, [reviewId]: true }));
     try {
       await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/submit`, {
@@ -104,10 +105,16 @@ const HumanReview = () => {
         body: JSON.stringify({
           decision,
           reasoning,
-          reviewer_id: "user123" // Example user
+          reviewer_id: "user123", // Example user
+          new_rule: newRule,
         }),
       });
       // The websocket message `completed_review` will handle removal from the UI
+      
+      // Clear inputs for this review on successful submission
+      setComments((prev) => ({ ...prev, [reviewId]: '' }));
+      setRuleInputs((prev) => ({ ...prev, [reviewId]: '' }));
+
     } catch (err) {
       console.error("Failed to submit review:", err);
     }
@@ -200,7 +207,7 @@ const HumanReview = () => {
                       {review.required_decision.map(decision => (
                         <button
                           key={decision}
-                          onClick={() => handleSubmit(review.request_id, decision, comments[review.request_id] || `${decision} via UI`)}
+                          onClick={() => handleSubmit(review.request_id, decision, comments[review.request_id] || `${decision} via UI`, ruleInputs[review.request_id] || null)}
                           disabled={submitting[review.request_id]}
                           className={`px-3 py-1 text-sm font-medium rounded-md text-white ${
                             decision.toLowerCase() === 'approve' ? 'bg-green-500 hover:bg-green-600' :

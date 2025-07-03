@@ -7,6 +7,7 @@ export const useWebSocket = () => {
 };
 
 const WS_URL = import.meta.env.VITE_WS_URL;
+// const WS_URL = "ws://localhost:8000/ws";
 
 export const WebSocketProvider = ({ children }) => {
   const wsRef = useRef(null);
