@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Sun, Moon, Menu } from 'lucide-react';
 import Chat from './Chat';
+import HumanReview from './HumanReview';
+import { useWebSocket } from './WebSocketProvider'; // Import the hook
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Dashboard = () => {
-  const wsRef = useRef(null);
+  const { lastMessage } = useWebSocket(); // Use the shared WebSocket context
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Active tab state
   const [activeTab, setActiveTab] = useState('invoice-dashboard');
@@ -45,10 +47,10 @@ const Dashboard = () => {
       setLoading(true);
       try {
         const [statsRes, invoicesRes, poRes, vendorStatsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/dashboard/stats`),
-          fetch(`${API_BASE_URL}/invoices`),
-          fetch(`${API_BASE_URL}/purchase-orders`),
-          fetch(`${API_BASE_URL}/charts/vendor-stats`)
+          fetch(`${API_BASE_URL}/api/dashboard/stats`),
+          fetch(`${API_BASE_URL}/api/invoices`),
+          fetch(`${API_BASE_URL}/api/purchase-orders`),
+          fetch(`${API_BASE_URL}/api/charts/vendor-stats`)
         ]);
 
         const statsData = await statsRes.json();
@@ -102,17 +104,14 @@ const Dashboard = () => {
     }
   }, [isDarkMode]);
 
-  // WebSocket connection for live updates
+  // Listen for messages from the shared WebSocket
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL;
-    wsRef.current = new WebSocket(wsUrl);
-
-    wsRef.current.onopen = () => console.log('WebSocket Connected');
-    
-    wsRef.current.onmessage = (event) => {
+    if (lastMessage) {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'dashboard_stats' && msg.data && msg.data.kpis) {
+        const msg = JSON.parse(lastMessage.data);
+        
+        // Handle incoming messages for the dashboard
+        if (msg.type === 'dashboard_update' && msg.data && msg.data.kpis) {
           const kpis = msg.data.kpis;
           setData(prevData => ({
             ...prevData,
@@ -129,17 +128,8 @@ const Dashboard = () => {
       } catch (e) {
         console.error("Error parsing WebSocket message:", e);
       }
-    };
-
-    wsRef.current.onerror = (error) => console.error('WebSocket Error:', error);
-    wsRef.current.onclose = () => console.log('WebSocket Disconnected');
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
+    }
+  }, [lastMessage]);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -208,7 +198,8 @@ const Dashboard = () => {
               {[
                 { id: 'invoice-dashboard', label: 'Invoice Dashboard' },
                 { id: 'purchase_orders', label: 'Purchase Orders' },
-                { id: 'chat', label: 'Chat' }
+                { id: 'chat', label: 'Chat' },
+                { id: 'human-review', label: 'Human Review' }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -379,6 +370,10 @@ const Dashboard = () => {
                 <div style={{ height: '90vh' }}>
                   <Chat />
                 </div>
+              )}
+
+              {activeTab === 'human-review' && (
+                <HumanReview />
               )}
             </div>
           </main>
